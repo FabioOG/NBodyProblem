@@ -428,11 +428,21 @@ void NBody::save(const string& filename, bool overwrite)
         resultsString.append("\n");
     }
 
+    bool outputExists = fileExists(filename);
     ofstream fichier;
+    bool writeFirstLine = true;
     if (overwrite) fichier = ofstream(filename);
     else fichier = ofstream(filename, ofstream::app);
 
-    if (!fileExists(filename) || overwrite) fichier << body.size() << "," << trajectories.size() << "," << pmax << "," << vmax << endl; // first line
+    if (!overwrite) // if we don't overwrite the file
+    {
+        if (outputExists) // Check if there's an unfinished file to start from
+        {
+            writeFirstLine = false;
+        }
+    }
+
+    if (writeFirstLine) fichier << body.size() << "," << trajectories.size() << "," << pmax << "," << vmax << endl; // first line
     fichier << resultsString; // Enter the results
 
 }
