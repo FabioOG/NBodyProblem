@@ -66,12 +66,16 @@ class NBody
 {
     public:
 
+        // Basic
         NBody();
         std::vector<Body> body;
+        void linkAll();
 
+        // Step computation
         void tick(long double delta);
         void tick();
 
+        // Step configuration
         long double getStep();
         long double normalStep;
         long double stepFactor;
@@ -79,27 +83,35 @@ class NBody
         ComputationMethod computationMethod;
         long double positionPulseRatio;
 
-        void Compute(long double tmax, unsigned int skip);
+        // Main computation premade functions
+        void compute(long double tmax, unsigned int skip, long double initTime = 0);
+        void computePreset(const std::string& initFilename, bool continueFromFile=false, const std::string& outFilename="out.csv");
+
+        // Trajectories management
         std::vector<std::pair<vector3l,vector3l>> getResults();
         long double getRecordedStep(int i=1);
         unsigned int recordedTrajectoryIndex;
         bool getComputationDone();
-        void save(std::string filename="trajectoire.csv");
+        void save(const std::string& filename="trajectoire.csv", bool overwrite = true);
 
+        // Usefull Physics stuff
         long double getEnergie();
         long double accelerationSum();
-        void linkAll();
 
+        // Math stuff
         unsigned int binomialCoeff(unsigned int n, unsigned int k);
         unsigned int factorial(unsigned int n);
         static void initialize();
         static const unsigned int maxn = 32;
 
     protected:
-        std::vector< std::pair<long double,std::vector<  std::pair<vector3l,vector3l> >> > trajectories; // Choix du temps, puis du couple de vecteur, puis position/vitesse
+
+        std::vector< std::pair<long double,std::vector<  std::pair<vector3l,vector3l> >> > trajectories; // Time, then body, then position or velocity
+        long double initEnergy;
+
         bool computationDone;
         static bool initialized;
-        long double initEnergy;
+
         static unsigned int C[maxn + 1][maxn + 1];
         static unsigned int f[maxn+1];
         static long double fInv[maxn+1];
