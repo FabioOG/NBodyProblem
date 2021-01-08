@@ -8,17 +8,18 @@ The program arguments should be :
 
 ```nBodyProblem [options] initFile [outputFile]```
 
-The `initFile` contains the presets of the simultation, it has to be specified. The `outputFile` will contains the trajectories of the bodies, its default value is `out.csv`
+The `initFile` contains the presets of the simultation, it has to be specified. The `outputFile` will contains the trajectories of the bodies, its default value is `out.csv`. If it already exists the program will continue the computation from the end of this file.
 
 ### Program options
 
 The program options are the following :
 
-* `-euler` Uses the explicit Euler integrator
-* `-taylor` Uses a 4-order Taylor serie
-* `-symplectic4` Uses a 4-order symplectic integrator
-* `-symplectic6` Uses a 6-order symplectic integrator
-* `-energy` Corrects the energy of the system
+* `--euler` Uses the explicit Euler integrator
+* `-t` or `--taylor` Uses a 4-order Taylor serie
+* `--symplectic4` Uses a 4-order symplectic integrator
+* `-s` or `--symplectic6` Uses a 6-order symplectic integrator
+* `-e` or `--energy` Corrects the energy of the system
+* `-o` or `--overwrite` The output file will be overwritten
 
 The default integrator running is the classic 4-order Runge-Kutta method
 
