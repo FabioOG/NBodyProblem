@@ -1,10 +1,11 @@
 #include "NBody.h"
 
 #include "vector3.h"
+#include "rapidcsv.h"
 #include <cmath>
+#include <sys/stat.h>
 #include <iostream>
 #include <fstream>
-#include <iterator>
 #include <string>
 
 using namespace std;
@@ -14,6 +15,12 @@ bool NBody::initialized = false;
 unsigned int NBody::C[NBody::maxn+1][NBody::maxn+1] = {0};
 unsigned int NBody::f[NBody::maxn+1] = {0};
 long double NBody::fInv[NBody::maxn+1] = {0};
+
+inline bool fileExists(string const& filename)
+{
+    struct stat buffer;
+    return (stat (filename.c_str(), &buffer) == 0);
+}
 
 NBody::NBody()
 {
@@ -51,16 +58,18 @@ void NBody::initialize()
     initialized=true;
 }
 
-void NBody::Compute(long double tmax, unsigned int skip)
+
+void NBody::compute(long double tmax, unsigned int skip, long double initTime)
 {
     initEnergy = getEnergie(); // Usefull for energy conservation
     stepFactor = normalStep * (long double)pow((long double)accelerationSum(),stepPower);
     computationDone=false;
-    long double t = 0;
+    long double t = initTime;
+    long double currentStep;
     trajectories = {};
     vector<pair<vector3l,vector3l>> resultatsActuels;
 
-    for (unsigned int i=0; t<tmax; i++)
+    for (unsigned int i=0; t<=tmax+1e-14; i++) // ajust for floating point errors
     {
         if (i%skip==0) // save this point
         {
@@ -70,14 +79,68 @@ void NBody::Compute(long double tmax, unsigned int skip)
             }
             trajectories.push_back( pair<long double,vector<pair<vector3l,vector3l>>>(t,resultatsActuels)  );
         }
-        long double currentStep = getStep();
-        if (currentStep==0) {cout << "Error : Delay dropped to 0" << endl; exit(1);}
+        currentStep = getStep();
+        if (currentStep==0) {cout << "Error : Delay dropped to 0" << endl; exit(EXIT_FAILURE);}
         t += currentStep;
-        tick();
+        if (t<=tmax+2e-15) tick(); // no need to tick, the result will be ignored
         cout << "\r" << int(100*t/tmax) << " %";
     }
     cout << "\r";
     computationDone=true;
+}
+
+void NBody::computePreset(const string& initFilename, bool continueFromFile, const std::string& outFilename)
+{
+    body = {};
+
+    // Init file read
+    rapidcsv::Document initFile(initFilename);
+    vector<long double> presetBodyLine = initFile.GetRow<long double>(0); // First line
+    unsigned int lineSize = presetBodyLine.size();
+    if (lineSize!=3 && lineSize!=4 && lineSize!=5) {cout << "Error : the first line size is " << lineSize << ", should be between 3 and 5" << endl; exit(EXIT_FAILURE);}
+    unsigned int n = presetBodyLine[0];
+    normalStep = presetBodyLine[1];
+    long double computationTime = presetBodyLine[2];
+    unsigned int skip=100;
+    if (lineSize>=4) skip = presetBodyLine[3];
+    if (lineSize==5) Body::G = presetBodyLine[4];
+
+    bool loadFromOut=false;
+    vector<long double> lastOutputLine;
+    long double initTime=0;
+
+    if (continueFromFile) // Check if there's an unfinished file to start from
+    {
+        if (fileExists(outFilename))
+        {
+            rapidcsv::Document outFile(outFilename);
+            lastOutputLine = outFile.GetRow<long double>(outFile.GetRowCount()-1);
+            if (lastOutputLine.size() != 6*n+1) {cout << "Error : the last line of output file size is " << lastOutputLine.size() <<", expected " << 6*n+1 << endl; exit(EXIT_FAILURE);}
+            loadFromOut = true;
+        }
+    }
+
+    for (unsigned int i=0; i<n; i++) // Load body data
+    {
+        presetBodyLine = initFile.GetRow<long double>(1+i);
+        if (presetBodyLine.size()!=7) {cout << "Error : the size body number " << i << "'s line does not have the correct size (7 numbers expected)" << endl; exit(EXIT_FAILURE);}
+
+        if (loadFromOut)
+        {
+            initTime = lastOutputLine[0];
+            body.push_back(Body( vector3l(lastOutputLine[1+6*i],lastOutputLine[2+6*i],lastOutputLine[3+6*i]), \
+                vector3l(lastOutputLine[4+6*i],lastOutputLine[5+6*i],lastOutputLine[6+6*i]), presetBodyLine[6] ));
+        }
+        else
+        {
+            body.push_back(Body( vector3l(presetBodyLine[0],presetBodyLine[1],presetBodyLine[2]), \
+                vector3l(presetBodyLine[3],presetBodyLine[4],presetBodyLine[5]), presetBodyLine[6] ));
+        }
+    }
+
+    linkAll();
+
+    compute(computationTime,skip,initTime);
 }
 
 long double NBody::getRecordedStep(int i)
@@ -348,11 +411,11 @@ bool NBody::getComputationDone()
     return computationDone;
 }
 
-void NBody::save(string filename)
+void NBody::save(const string& filename, bool overwrite)
 {
     string resultsString;
     long double pmax(0),vmax(0);
-    for (unsigned int i=0; i<trajectories.size(); i++)
+    for (unsigned int i=(!overwrite); i<trajectories.size(); i++) // skip the first if we are continuing a computation, so the line isn't duplicated
     {
         resultsString.append(to_string(trajectories[i].first)); // time
         for (unsigned int j=0; j<body.size(); j++)
@@ -365,8 +428,21 @@ void NBody::save(string filename)
         resultsString.append("\n");
     }
 
-    ofstream fichier(filename);
-    fichier << body.size() << "," << trajectories.size() << "," << pmax << "," << vmax << endl; // first line
+    bool outputExists = fileExists(filename);
+    ofstream fichier;
+    bool writeFirstLine = true;
+    if (overwrite) fichier = ofstream(filename);
+    else fichier = ofstream(filename, ofstream::app);
+
+    if (!overwrite) // if we don't overwrite the file
+    {
+        if (outputExists) // Check if there's an unfinished file to start from
+        {
+            writeFirstLine = false;
+        }
+    }
+
+    if (writeFirstLine) fichier << body.size() << "," << trajectories.size() << "," << pmax << "," << vmax << endl; // first line
     fichier << resultsString; // Enter the results
 
 }
